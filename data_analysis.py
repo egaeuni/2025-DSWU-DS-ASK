@@ -7,7 +7,10 @@ from catboost import CatBoostRegressor, Pool
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score   # 평가 지표
 
-# 데이터 불러오기기
+# 상관 분석
+from scipy.stats import spearmanr
+
+# 데이터 불러오기
 df = pd.read_csv('AI_Resume_Screening.csv')
 
 # Skills 원-핫 인코딩
@@ -67,3 +70,40 @@ rmse = np.sqrt(mean_squared_error(y_test, pred))
 mae  = mean_absolute_error(y_test, pred)
 r2   = r2_score(y_test, pred)
 print(f"RMSE={rmse:.3f} | MAE={mae:.3f} | R2={r2:.3f}")
+
+# CatBoost 모델 전역 해석
+shap_vals = model.get_feature_importance(test_pool, type='ShapValues')  # CatBoost 내부의 SHAP
+phi = shap_vals[:, :-1]  # 마지막 열(base value) 제거 
+features = X_test.columns.tolist()
+
+# 평균 절대 SHAP으로 전역 중요도 = 어떤 Feature가 전반적으로 중요한지
+mean_abs_shap = np.abs(phi).mean(axis=0) # 각 feature가 전체 예측에 끼친 영향의 평균 절댓값 (크면 중요)
+imp_df = pd.DataFrame({'feature': features, 'mean_abs_shap': mean_abs_shap})
+imp_df = imp_df.sort_values('mean_abs_shap', ascending=False)
+print("\nSHAP 기준 상위 15개")
+print(imp_df.head(15))
+
+# # 방향성 추정 (스피어만 상관계수: +1에 가까울수록 정비례, -1에 가까울수록 반비례, 0에 가까우면 순위 상관 거의 X)
+dir_sign = []
+
+for i, col in enumerate(features):
+    # 범주형 컬럼 문자열이기 때문에 코드로 임시 변환
+    if col in cat_cols:
+        vals = pd.Categorical(X_test[col], categories=sorted(X_test[col].unique())).codes
+    else:
+        vals = X_test[col].values
+    # 상관 계산
+    if np.all(vals == vals[0]):
+        dir_sign.append(np.nan)
+        # 모든 값이 같으면 상관계수를 계산할 수 없으므로 Nan 값
+    else:
+        rho, _ = spearmanr(vals, phi[:, i])
+        dir_sign.append(rho)
+        # 값이 모두 같지 않으면 정상적으로 스피어만 상관계수 계산
+        # rho -> 특성값(vals)과 SHAP 값(phi[:, i]) 간의 순위 상관계수
+
+dir_df = pd.DataFrame({'feature': features, 'spearman(val, shap)': dir_sign})
+summary_df = imp_df.merge(dir_df, on='feature', how='left')
+
+print("\n스피어만 상관계수를 기준으로 방향성까지 고려한 상위 15개")
+print(summary_df.head(15))
