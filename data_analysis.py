@@ -57,14 +57,14 @@ test_pool  = Pool(X_test,  y_test,  cat_features=cat_idx)
 # Pool = CatBoost 모델에 사용되는 데이터를 로딩하고 저장하는 클래스
 
 # CatBoost 회귀 학습 (AI Score 예측)
-print("CatBoost 모델 학습")
+print("[CatBoost 모델 학습]")
 model = CatBoostRegressor(loss_function='RMSE',eval_metric='RMSE',iterations=2000, learning_rate=0.05,
     depth=6, random_seed=42, early_stopping_rounds=100, verbose=100
 )
 model.fit(train_pool, eval_set=test_pool, use_best_model=True)
 
 # 성능 평가
-print("CatBoost 성능 평가")
+print("\n[CatBoost 성능 평가]")
 pred = model.predict(test_pool)
 rmse = np.sqrt(mean_squared_error(y_test, pred))
 mae  = mean_absolute_error(y_test, pred)
@@ -80,7 +80,7 @@ features = X_test.columns.tolist()
 mean_abs_shap = np.abs(phi).mean(axis=0) # 각 feature가 전체 예측에 끼친 영향의 평균 절댓값 (크면 중요)
 imp_df = pd.DataFrame({'feature': features, 'mean_abs_shap': mean_abs_shap})
 imp_df = imp_df.sort_values('mean_abs_shap', ascending=False)
-print("\nSHAP 기준 상위 15개")
+print("\n[SHAP 기준 상위 15개]")
 print(imp_df.head(15))
 
 # # 방향성 추정 (스피어만 상관계수: +1에 가까울수록 정비례, -1에 가까울수록 반비례, 0에 가까우면 순위 상관 거의 X)
@@ -105,5 +105,30 @@ for i, col in enumerate(features):
 dir_df = pd.DataFrame({'feature': features, 'spearman(val, shap)': dir_sign})
 summary_df = imp_df.merge(dir_df, on='feature', how='left')
 
-print("\n스피어만 상관계수를 기준으로 방향성까지 고려한 상위 15개")
+print("\n[스피어만 상관계수를 기준으로 방향성까지 고려한 상위 15개]")
 print(summary_df.head(15))
+
+# 카테고리별 평균 SHAP 값 (각 카테고리 값이 AI Score를 얼마나 올리거나 내리는지)
+# 범주형 데이터만 실행
+def category_mean_shap(col, top_k=10):
+    if col not in cat_cols:
+        raise ValueError(f"{col}은(는) 범주형이 아닙니다.")
+    j = features.index(col)
+    tmp = pd.DataFrame({'val': X_test[col].astype(str), 'shap': phi[:, j]})
+    result = tmp.groupby('val', as_index=False)['shap'].mean()  # reset_index 효과
+    return result.sort_values('shap', ascending=False).head(top_k)
+
+for c in cat_cols:
+    print(f"\n[{c}의 평균 SHAP]")
+    print(category_mean_shap(c, top_k=10))
+
+# 특정 후보의 feature을 바꾸면 예측 점수가 어떻게 변할지 시뮬레이션
+def simulate_changes(row, changes: dict):
+    x_new = row.copy() # raw: X의 한 행 (= pd.Series)
+    for k, v in changes.items(): # changes: 딕셔너리에 있는 값
+        if k not in X.columns:
+            raise KeyError(f"'{k}'는 X에 없는 컬럼입니다.")
+        x_new[k] = v
+    # 단일 행 Pool 구성
+    pool = Pool(pd.DataFrame([x_new.values], columns=X.columns), cat_features=cat_idx)
+    return float(model.predict(pool)[0])
