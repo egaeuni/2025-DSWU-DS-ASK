@@ -10,6 +10,10 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score   
 # 상관 분석
 from scipy.stats import spearmanr
 
+# 시각화
+import shap
+import matplotlib.pyplot as plt
+
 # 데이터 불러오기
 df = pd.read_csv('AI_Resume_Screening.csv')
 
@@ -156,3 +160,44 @@ for k, v in modifications.items():
 
 print(f"원래 예측 점수 = {base_pred:.2f} → 변환 후 예측 점수 = {new_pred:.2f}")
 print(f"점수 변화 Δ={new_pred - base_pred:+.2f}")
+
+# SHAP TreeExplainer 생성
+explainer = shap.TreeExplainer(model)
+shap_values = explainer.shap_values(X_test)
+
+# 전역 SHAP 시각화
+# Summary Dot Plot
+shap.summary_plot(shap_values, X_test, plot_type="dot", max_display=10)
+
+# Summary Bar Plot
+shap.summary_plot(shap_values, X_test, plot_type="bar", max_display=10)
+
+# 지역 SHAP 시각화 (대표 후보)
+# AI Score 최소 후보 기준
+min_idx = y_test.idxmin()
+sample_row = X_test.loc[min_idx]
+
+# 범주형 변수별 평균 SHAP 시각화
+cat_cols = ['Education', 'Certifications']
+
+for c in cat_cols:
+    j = X_test.columns.get_loc(c)
+    tmp = pd.DataFrame({'category': X_test[c].astype(str), 'shap': shap_values[:, j]})
+    mean_shap = tmp.groupby('category')['shap'].mean().sort_values(ascending=False)
+    
+    plt.figure(figsize=(6,4))
+    mean_shap.plot(kind='bar')
+    
+    plt.title(f"Mean SHAP of {c}")
+    plt.ylabel("Mean SHAP")
+    
+    # 조건에 따라 xticks 회전 조정
+    if c == 'Education':
+        plt.xticks(rotation=0, ha='center')
+    else:
+        plt.xticks(rotation=20, ha='right')
+    
+    plt.show()
+    
+    print(f"\n[{c} 평균 SHAP 테이블]")
+    print(mean_shap)
