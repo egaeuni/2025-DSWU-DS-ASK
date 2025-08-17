@@ -132,3 +132,27 @@ def simulate_changes(row, changes: dict):
     # 단일 행 Pool 구성
     pool = Pool(pd.DataFrame([x_new.values], columns=X.columns), cat_features=cat_idx)
     return float(model.predict(pool)[0])
+
+print("\n[후보 특성 변경 시뮬레이션]")
+
+# AI Score가 가장 낮은 후보 선택
+min_score_idx = y_test.idxmin()        # y_test에서 최소값 index
+sample_row = X_test.loc[min_score_idx] # 해당 후보 샘플
+base_pred = y_test.loc[min_score_idx]
+
+# WHAT-IF 적용
+modifications = {}
+if 'Experience (Years)' in X.columns:
+    modifications['Experience (Years)'] = 0  # 경력 설정
+if 'Projects Count' in X.columns:
+    modifications['Projects Count'] = 10  # 프로젝트 수 설정
+## 다른 후보도 적용 가능 (자격증, 학력 등등...)
+
+new_pred = simulate_changes(sample_row, modifications)
+
+# 변경 전후 값 확인
+for k, v in modifications.items():
+    print(f"{k}: 원래 값 = {sample_row[k]} → 변경 값 = {v}")
+
+print(f"원래 예측 점수 = {base_pred:.2f} → 변환 후 예측 점수 = {new_pred:.2f}")
+print(f"점수 변화 Δ={new_pred - base_pred:+.2f}")
