@@ -180,24 +180,27 @@ sample_row = X_test.loc[min_idx]
 # 범주형 변수별 평균 SHAP 시각화
 cat_cols = ['Education', 'Certifications']
 
-for c in cat_cols:
+fig, axes = plt.subplots(1, len(cat_cols), figsize=(12, 4))  # 1행 2열 (가로 배치)
+
+for i, c in enumerate(cat_cols):
     j = X_test.columns.get_loc(c)
     tmp = pd.DataFrame({'category': X_test[c].astype(str), 'shap': shap_values[:, j]})
     mean_shap = tmp.groupby('category')['shap'].mean().sort_values(ascending=False)
-    
-    plt.figure(figsize=(6,4))
-    mean_shap.plot(kind='bar')
-    
-    plt.title(f"Mean SHAP of {c}")
-    plt.ylabel("Mean SHAP")
-    
+
+    mean_shap.plot(kind='bar', ax=axes[i])
+
+    axes[i].set_title(f"Mean SHAP of {c}")
+    axes[i].set_ylabel("Mean SHAP")
+
     # 조건에 따라 xticks 회전 조정
     if c == 'Education':
-        plt.xticks(rotation=0, ha='center')
+        axes[i].set_xticklabels(mean_shap.index, rotation=0, ha='center')
     else:
-        plt.xticks(rotation=20, ha='right')
-    
-    plt.show()
-    
+        axes[i].set_xticklabels(mean_shap.index, rotation=20, ha='right')
+
     print(f"\n[{c} 평균 SHAP 테이블]")
     print(mean_shap)
+
+plt.tight_layout()
+plt.show()
+
