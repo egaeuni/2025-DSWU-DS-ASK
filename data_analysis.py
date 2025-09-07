@@ -177,6 +177,13 @@ shap.summary_plot(shap_values, X_test, plot_type="bar", max_display=10)
 min_idx = y_test.idxmin()
 sample_row = X_test.loc[min_idx]
 
+# Certifications 레이블 줄바꿈 처리
+rename_certi = {
+    "Deep Learning Specialization": "Deep Learning\nSpecialization",
+    "Google ML": "Google\nML",
+    "AWS Certified": "AWS\nCertified"
+}
+
 # 범주형 변수별 평균 SHAP 시각화
 cat_cols = ['Education', 'Certifications']
 
@@ -187,20 +194,23 @@ for i, c in enumerate(cat_cols):
     tmp = pd.DataFrame({'category': X_test[c].astype(str), 'shap': shap_values[:, j]})
     mean_shap = tmp.groupby('category')['shap'].mean().sort_values(ascending=False)
 
-    mean_shap.plot(kind='bar', ax=axes[i])
+    labels = [rename_certi.get(cat, cat) for cat in mean_shap.index]
+
+    mean_shap.plot(kind='bar', ax=axes[i], width=0.6)
 
     axes[i].set_title(f"Mean SHAP of {c}")
     axes[i].set_ylabel("Mean SHAP")
 
     # 조건에 따라 xticks 회전 조정
-    if c == 'Education':
-        axes[i].set_xticklabels(mean_shap.index, rotation=0, ha='center')
-    else:
-        axes[i].set_xticklabels(mean_shap.index, rotation=20, ha='right')
+    axes[i].set_title(f"Mean SHAP of {c}")
+    axes[i].set_ylabel("Mean SHAP")
+    axes[i].set_xticks(range(len(labels)))
+    axes[i].set_xticklabels(labels, rotation=0, ha='center')
 
     print(f"\n[{c} 평균 SHAP 테이블]")
     print(mean_shap)
 
 plt.tight_layout()
 plt.show()
+
 
